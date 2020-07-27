@@ -10,6 +10,14 @@ from xml.dom import minidom
 import planet, config, feedparser, reconstitute, shell, socket, scrub
 from StringIO import StringIO 
 
+# Fedora messaging related imports
+import logging
+from fedora_planet_messages.post_messages import PostNew
+from fedora_messaging.api import publish as fm_publish
+from fedora_messaging.exceptions import PublishReturned, ConnectionException
+
+_log = logging.getLogger(__name__)
+
 try:
   from hashlib import md5
 except:
@@ -234,6 +242,36 @@ def writeCache(feed_uri, feed_info, data):
         if not output:
           if os.path.exists(cache_file): os.remove(cache_file)
           continue
+
+        if config.fedora_messaging_enabled() and not os.path.exists(cache_file):
+          # If the cache file for this entry doesn't exist, then we can
+          # somewhat safely assume we have never seen it before and that
+          # it is "new"
+          try:
+            msg = fm_publish(
+              PostNew(
+                topic="planet.post.new",
+                body={
+                  "face": config.parser.get(feed_uri, "face", None),
+                  "username": config.parser.get(feed_uri, "fasname", None),
+                  "name": config.parser.get(feed_uri, "name", None),
+                  "post": entry,
+                }
+              )
+            )
+          except PublishReturned as e:
+            _log.warning(
+              "Fedora Messaging broker rejected message {}: {}".format(
+                msg.id, e
+              )
+            )
+          except ConnectionException as e:
+            _log.warning(
+              "Error sending the message {}: {}".format(
+                msg.id, e
+              )
+            )
+
 
         # write out and timestamp the results
         write(output, cache_file, mtime) 
