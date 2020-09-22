@@ -247,6 +247,8 @@ def writeCache(feed_uri, feed_info, data):
           # Convert the updated_parsed back to a unix timestamp as the
           # time_structure format is not JSON serializable
           entry['updated_parsed'] = time.mktime(entry['updated_parsed'])
+          if entry.get('published_parsed'):
+              entry['published_parsed'] = time.mktime(entry['published_parsed'])
 
           # If the cache file for this entry doesn't exist, then we can
           # somewhat safely assume we have never seen it before and that
